@@ -1,0 +1,12 @@
+[package]
+name = "shader_loader"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gl = "0.14.0"
+lazy_static = "1.4.0"
+path-dedot = "3.1.0"
+regex = "1.9.1"
