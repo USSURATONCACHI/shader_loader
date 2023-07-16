@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use crate::{create_whitespace_cstring, shader::Shader};
+use gl::types::GLenum;
+use regex::Regex;
+
+use crate::{create_whitespace_cstring, shader::Shader, preprocessor::{FileLoader, FileIncludes}};
 
 
 pub trait Uniformable {
@@ -8,10 +11,69 @@ pub trait Uniformable {
 }
 
 
+
+fn parse_opengl_errors(error: String, file: &FileIncludes) -> String {
+    lazy_static::lazy_static! {
+        pub static ref ERROR_POS_REGEX: Regex = Regex::new(r#"(\d)+\((\d+)\) :"#).unwrap();
+    }
+
+    let lines = error.split("\n");
+    let mut edited_lines = "".to_owned();
+
+    for line in lines.into_iter() {
+        let mut line_owned = line.to_owned();
+        if let Some(caps) = ERROR_POS_REGEX.captures(line) {
+            //let full_match = caps.get(0).unwrap();
+            let row_no = caps.get(2).unwrap();
+
+            let row_no: usize = (&line[row_no.start()..row_no.end()]).parse().unwrap();
+
+            let (original_filepath, original_line) = file.file_and_line_at(row_no).unwrap();
+            let includes_history = file.all_segments_at(row_no);
+            
+            let mut filepath = "File ".to_owned();
+            for i in 0..(includes_history.len() - 1) {
+                filepath += &includes_history[i].original_file;
+                filepath += " included from\n";
+            }
+            filepath += &original_filepath;
+
+            line_owned.insert_str(0, &format!("{filepath} | Line {original_line} | "))
+        }
+        edited_lines.push_str(&line_owned);
+        edited_lines.push_str("\n");
+    }
+    edited_lines
+}
+
+
+
 pub struct Program(gl::types::GLuint);
 
 impl Program {
-    #[allow(dead_code)]
+
+    pub fn from_loader(loader: &FileLoader, files: &[(&str, gl::types::GLenum)]) -> Result<Program, String> {
+        let mut loaded_files: Vec<(FileIncludes, GLenum)> = vec![];
+
+        for (filepath, shader_type) in files {
+            loaded_files.push((
+                loader.load_file(filepath)?,
+                *shader_type
+            ));
+        }
+
+        let shaders: Result<Vec<Shader>, String> = loaded_files.into_iter()
+            .map(|(content, shader_type)| {
+                let text = content.text();
+                let shader = Shader::from_source_string(text, shader_type)
+                    .map_err(|error| parse_opengl_errors(error, &content));
+                shader
+            }).collect();
+        let shaders = shaders?;
+
+        Self::from_shaders(&shaders)
+    }
+
     pub fn from_files_auto(shader_name: &str) -> Result<Program, String> {
         const POSSIBLE_EXTS: [(&str, gl::types::GLenum); 4] = [
             (".vert", gl::VERTEX_SHADER),
@@ -32,11 +94,10 @@ impl Program {
             .map(|(path, stype)| (path.as_str(), stype.clone()))
             .collect();
 
-        Self::from_files(&files_ref)
+        Self::from_filepaths(&files_ref)
     }
 
-    #[allow(dead_code)]
-    pub fn from_files(files: &[(&str, gl::types::GLenum)]) -> Result<Program, String> {
+    pub fn from_filepaths(files: &[(&str, gl::types::GLenum)]) -> Result<Program, String> {
         let shaders: Result<Box<[_]>, _> = files
             .iter()
             .map(

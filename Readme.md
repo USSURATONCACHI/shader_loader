@@ -1,4 +1,4 @@
-## shader_loader
+## shader_loader (WIP)
 
 This library automates some tedious work of loading and compiling OpenGL shaders. 
 
@@ -8,3 +8,4 @@ By default OpenGL does not allow for `#include` directives in shaders.
 
 ## Quick start
 
+Sorry, readme is not ready yet. In will be available very soon. 

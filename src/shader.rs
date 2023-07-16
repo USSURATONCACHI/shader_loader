@@ -18,6 +18,11 @@ impl Shader {
         let c_string = CString::new(source).unwrap();
         Self::from_source(&c_string, shader_type)
     }
+    
+    pub fn from_source_string(source: String, shader_type: gl::types::GLenum) -> Result<Self, String> {
+        let c_string = CString::new(source).unwrap();
+        Self::from_source(&c_string, shader_type)
+    }
 
     pub fn from_source(source: &CStr, shader_type: gl::types::GLenum) -> Result<Self, String> {
         let id = unsafe { gl::CreateShader(shader_type) };
